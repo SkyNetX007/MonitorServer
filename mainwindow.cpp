@@ -2,6 +2,11 @@
 #include "ui_mainwindow.h"
 
 #include <QRegExpValidator>
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QJsonParseError>
+#include <QJsonValue>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -45,8 +50,9 @@ public:
     double r = 0.0;
     time_t TimeStamp = 0;
 
+    Resistance();
     Resistance(double _r, time_t _TimeStamp);
-    ~Resistance();
+    //~Resistance();
 };
 
 Resistance::Resistance(double _r, time_t _TimeStamp)
@@ -68,7 +74,7 @@ void MainWindow::serverNewConnect()
     QTableWidgetItem *item_2 = new QTableWidgetItem();
     QTableWidgetItem *item_3 = new QTableWidgetItem();
     QTableWidgetItem *item_4 = new QTableWidgetItem();
-    item_1->setText(tr("%1").arg(QString::number(ui->sessionList->rowCount())));
+    item_1->setText(tr("#%1").arg(QString::number(ui->sessionList->rowCount())));
     item_2->setText(clientSocket[currentRow]->peerAddress().toString().mid(7));
     item_3->setText(QString::number(clientSocket[currentRow]->peerPort()));
     item_4->setText("在线");
@@ -76,6 +82,11 @@ void MainWindow::serverNewConnect()
     ui->sessionList->setItem(currentRow, 1, item_2);
     ui->sessionList->setItem(currentRow, 2, item_3);
     ui->sessionList->setItem(currentRow, 3, item_4);
+
+    // 日志输出
+    static QString connectMessage;
+    connectMessage = tr("[%1:%2] connected.").arg(socket->peerAddress().toString().mid(7)).arg(socket->peerPort());
+    ui->recievedData->append(connectMessage);
 
     // 连接QTcpSocket的信号槽，以读取新数据
     connect(socket, SIGNAL(readyRead()), this, SLOT(ReadData()));
@@ -130,16 +141,29 @@ void MainWindow::ReadData()
         if(buffer.isEmpty()) {
             continue;
         }
-        
+
+        // 解析数据
+        QString buffer_string = buffer, jsonparse;
+        Resistance instance(0, 0);
+        if (Json2Instance(buffer_string, &instance))
+        {
+            jsonparse = tr("%1:%2").arg(instance.r).arg(instance.TimeStamp);
+        }
+        else
+        {
+            jsonparse = tr("%1 %2").arg("Json parse error!\nRecieved data:").arg(buffer_string);
+        }
+
+        // 日志输出
         static QString IP_Port, IP_Port_Pre;
-        IP_Port = tr("[%1:%2]:").arg(clientSocket[i]->peerAddress().toString().mid(7)).arg(clientSocket[i]->peerPort());
+        IP_Port = tr("[%1:%2] messages:").arg(clientSocket[i]->peerAddress().toString().mid(7)).arg(clientSocket[i]->peerPort());
 
         // 若此次消息的地址与上次不同，则需显示此次消息的客户端地址
         if (IP_Port != IP_Port_Pre) {
             ui->recievedData->append(IP_Port);
         }
 
-        ui->recievedData->append(buffer);
+        ui->recievedData->append(jsonparse);
 
         // 更新ip_port
         IP_Port_Pre = IP_Port;
@@ -158,6 +182,10 @@ void MainWindow::DisConnected()
                     ui->sessionList->removeRow(j);
                 }
             }
+            // 日志输出
+            static QString disconnectMessage;
+            disconnectMessage = tr("[%1:%2] disconnected.").arg(clientSocket[i]->peerAddress().toString().mid(7)).arg(clientSocket[i]->peerPort());
+            ui->recievedData->append(disconnectMessage);
             // 删除存储在clientSocket列表中的客户端信息
             clientSocket[i]->destroyed();
             clientSocket.removeAt(i);
@@ -192,4 +220,37 @@ void MainWindow::on_Send_clicked()
             socket->write(data.toUtf8());
         }
     }
+}
+
+bool Json2Instance(QString json, Resistance* data)
+{
+    int r_value = 0, timestamp_value = 0;
+    QJsonParseError jsonerror;
+    QJsonDocument doc = QJsonDocument::fromJson(json.toLatin1(), &jsonerror);
+    if (!doc.isNull() && jsonerror.error == QJsonParseError::NoError)
+    {
+        if(doc.isObject())
+        {
+            // 开始解析json对象
+            QJsonObject object = doc.object();
+            //如果包含 RESISTANCE
+			if (object.contains("RESISTANCE"))
+			{
+				//获取 RESISTANCE
+				QJsonValue RESISTANCE_VALUE = object.take("RESISTANCE");
+                //转换 RESISTANCE
+                r_value = RESISTANCE_VALUE.toVariant().toInt();
+			}
+			if (object.contains("TIMESTAMP"))
+			{
+                QJsonValue TIMESTAMP_VALUE = object.take("TIMESTAMP");
+                timestamp_value = TIMESTAMP_VALUE.toVariant().toInt();
+			}
+        }
+        data->r = r_value;
+        data->TimeStamp = timestamp_value;
+        qDebug()<<r_value<<timestamp_value;
+        return true;
+    }
+    return false;
 }

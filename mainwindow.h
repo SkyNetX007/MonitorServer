@@ -38,10 +38,9 @@ private:
     QTcpServer * server;
     QTcpSocket * socket;
     QList<QTcpSocket*> clientSocket;
-
-
 };
 
 class Resistance;
+bool Json2Instance(QString json, Resistance* data);
 
 #endif // MAINWINDOW_H
