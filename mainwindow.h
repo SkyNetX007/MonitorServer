@@ -6,6 +6,14 @@
 #include <QTcpSocket>
 #include <QNetworkInterface>
 #include <QMessageBox>
+#include <QRegExpValidator>
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QJsonParseError>
+#include <QJsonValue>
+#include <QtCharts>
+QT_CHARTS_USE_NAMESPACE
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -22,25 +30,35 @@ public:
 private slots:
     void on_socketListen_clicked();
 
-    void serverNewConnect();
+    void on_clearLog_clicked();
+
+    void on_Send_clicked();
+
+    void on_drawChart_clicked();
+
+    void ServerNewConnect();
 
     void ReadData();
 
     void DisConnected();
 
-    void on_clearLog_clicked();
-
-    void on_Send_clicked();
+    void UpdateData();
 
 private:
     Ui::MainWindow *ui;
 
-    QTcpServer * server;
-    QTcpSocket * socket;
+    class Resistance;
+    QTcpServer *server;
+    QTcpSocket *socket;
     QList<QTcpSocket*> clientSocket;
-};
+    QChartView *chartView = new QChartView();
+    QChart *chart = chartView->chart();
+    QLineSeries *series = new QLineSeries();
+    QTimer timer;
+    QVector<Resistance> DataList;
+    QImage *chartImage;
 
-class Resistance;
-bool Json2Instance(QString json, Resistance* data);
+    bool Json2Instance(QString json, Resistance* data);
+};
 
 #endif // MAINWINDOW_H

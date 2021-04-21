@@ -1,13 +1,6 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
-#include <QRegExpValidator>
-#include <QJsonDocument>
-#include <QJsonArray>
-#include <QJsonObject>
-#include <QJsonParseError>
-#include <QJsonValue>
-
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
     , ui(new Ui::MainWindow)
@@ -30,7 +23,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->sessionList->setEditTriggers(QAbstractItemView::NoEditTriggers);
 
     // 关联客户端连接信号newConnection
-    connect(server, &QTcpServer::newConnection, this, &MainWindow::serverNewConnect);
+    connect(server, &QTcpServer::newConnection, this, &MainWindow::ServerNewConnect);
 
     // 端口输入限制
     QRegExpValidator *pRevalidotor = new QRegExpValidator(QRegExp("[0-9]{5}"), this);
@@ -42,7 +35,7 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
-class Resistance
+class MainWindow::Resistance
 {
 private:
 
@@ -55,13 +48,13 @@ public:
     //~Resistance();
 };
 
-Resistance::Resistance(double _r, time_t _TimeStamp)
+MainWindow::Resistance::Resistance(double _r, time_t _TimeStamp)
 {
     r = _r;
     TimeStamp = _TimeStamp;
 }
 
-void MainWindow::serverNewConnect()
+void MainWindow::ServerNewConnect()
 {
     // 获取客户端连接
     socket = server->nextPendingConnection();
@@ -148,6 +141,7 @@ void MainWindow::ReadData()
         if (Json2Instance(buffer_string, &instance))
         {
             jsonparse = tr("%1:%2").arg(instance.r).arg(instance.TimeStamp);
+            DataList.push_back(instance);
         }
         else
         {
@@ -222,7 +216,7 @@ void MainWindow::on_Send_clicked()
     }
 }
 
-bool Json2Instance(QString json, Resistance* data)
+bool MainWindow::Json2Instance(QString json, Resistance* data)
 {
     int r_value = 0, timestamp_value = 0;
     QJsonParseError jsonerror;
@@ -234,18 +228,18 @@ bool Json2Instance(QString json, Resistance* data)
             // 开始解析json对象
             QJsonObject object = doc.object();
             //如果包含 RESISTANCE
-			if (object.contains("RESISTANCE"))
-			{
-				//获取 RESISTANCE
-				QJsonValue RESISTANCE_VALUE = object.take("RESISTANCE");
+            if (object.contains("RESISTANCE"))
+            {
+                //获取 RESISTANCE
+                QJsonValue RESISTANCE_VALUE = object.take("RESISTANCE");
                 //转换 RESISTANCE
                 r_value = RESISTANCE_VALUE.toVariant().toInt();
-			}
-			if (object.contains("TIMESTAMP"))
-			{
+            }
+            if (object.contains("TIMESTAMP"))
+            {
                 QJsonValue TIMESTAMP_VALUE = object.take("TIMESTAMP");
                 timestamp_value = TIMESTAMP_VALUE.toVariant().toInt();
-			}
+            }
         }
         data->r = r_value;
         data->TimeStamp = timestamp_value;
@@ -253,4 +247,102 @@ bool Json2Instance(QString json, Resistance* data)
         return true;
     }
     return false;
+}
+
+void MainWindow::on_drawChart_clicked()
+{
+    if (ui->drawChart->text() == tr("绘制"))
+    {
+        ui->drawChart->setText("清除");
+        chartView->setRubberBand(QChartView::HorizontalRubberBand);
+        chartView->setRenderHint(QPainter::Antialiasing);
+
+
+        if (DataList.size()>=10)
+        {
+            for (int i = DataList.size()-10; i < DataList.size(); i++)
+            {
+                series->append(DataList[i].TimeStamp, DataList[i].r);
+            }
+        }
+        else
+        {
+            ui->recievedData->append("Not enough data!");
+        }
+
+        // 将系列添加到图表
+        chart->addSeries(series);
+
+        // 定时器
+        connect(&timer, SIGNAL(timeout()), this, SLOT(UpdateData()));
+        timer.start(5000);
+
+        // 基于已添加到图表的 series 来创建默认的坐标轴
+        chart->createDefaultAxes();
+        chart->axes().back()->setGridLineVisible(false);
+        chart->axes(Qt::Vertical).back()->setTitleText("Resistance/Ohm");
+        chart->axes(Qt::Horizontal).back()->setTitleText("Time");
+        chart->axes(Qt::Vertical).back()->setRange(6000, 7000);
+
+        // 将图表绑定到视图
+        ui->widget->setChart(chart);
+    }
+    else
+    {
+        ui->drawChart->setText("绘制");
+        chart->removeAxis(chart->axes().back());
+        chart->axes().clear();
+        chart->removeSeries(series);
+        series->clear();
+        timer.stop();
+    }
+}
+
+void MainWindow::UpdateData()
+{
+    qDebug()<<"Updating.."<<DataList.size();
+    QPixmap p = chartView->grab();
+
+    series->clear();
+    chart->removeSeries(series);
+
+    if (DataList.size()>=10)
+    {
+        for (int i = DataList.size()-10; i < DataList.size(); i++)
+        {
+            series->append(DataList[i].TimeStamp, DataList[i].r);
+        }
+        for (int i = DataList.size()/5; i>0; i--)
+        {
+            DataList.pop_front();
+        }
+    }
+    else
+    {
+        ui->recievedData->append("Not enough data!");
+    }
+    chart->addSeries(series);
+
+    // 基于已添加到图表的 series 来创建默认的坐标轴
+    chart->createDefaultAxes();
+    chart->axes().back()->setGridLineVisible(false);
+    chart->axes(Qt::Vertical).back()->setTitleText("Resistance/Ohm");
+    chart->axes(Qt::Horizontal).back()->setTitleText("Time");
+    chart->axes(Qt::Vertical).back()->setRange(6000, 7000);
+
+    // 将图表绑定到视图
+    ui->widget->setChart(chart);
+
+    if (clientSocket.length()==0)
+    {
+        ui->drawChart->setText("绘制");
+        chart->removeAxis(chart->axes().back());
+        chart->axes().clear();
+        chart->removeSeries(series);
+        series->clear();
+        timer.stop();
+    }
+    //*chartImage = p.toImage();
+    //chartImage->save("chart.png");
+    return;
 }
