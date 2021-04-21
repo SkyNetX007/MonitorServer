@@ -38,5 +38,10 @@ private:
     QTcpServer * server;
     QTcpSocket * socket;
     QList<QTcpSocket*> clientSocket;
+
+
 };
+
+class Resistance;
+
 #endif // MAINWINDOW_H

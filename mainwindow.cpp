@@ -21,7 +21,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->serverStateLabel->setPalette(pe);
     ui->serverStateLabel->setText("服务器未启动");
 
-    // 设置tableWidget不可编辑
+    // 设置sessionList不可编辑
     ui->sessionList->setEditTriggers(QAbstractItemView::NoEditTriggers);
 
     // 关联客户端连接信号newConnection
@@ -37,20 +37,38 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
+class Resistance
+{
+private:
+
+public:
+    double r = 0.0;
+    time_t TimeStamp = 0;
+
+    Resistance(double _r, time_t _TimeStamp);
+    ~Resistance();
+};
+
+Resistance::Resistance(double _r, time_t _TimeStamp)
+{
+    r = _r;
+    TimeStamp = _TimeStamp;
+}
+
 void MainWindow::serverNewConnect()
 {
     // 获取客户端连接
     socket = server->nextPendingConnection();
     clientSocket.append(socket);
 
-    // 把连接到的客户端添加入tableWidget中
+    // 把连接到的客户端添加入sessionList
     int currentRow = ui->sessionList->rowCount();
     ui->sessionList->insertRow(currentRow);
     QTableWidgetItem *item_1 = new QTableWidgetItem();
     QTableWidgetItem *item_2 = new QTableWidgetItem();
     QTableWidgetItem *item_3 = new QTableWidgetItem();
     QTableWidgetItem *item_4 = new QTableWidgetItem();
-    item_1->setText(tr("0000000%1").arg(QString::number(ui->sessionList->rowCount())));
+    item_1->setText(tr("%1").arg(QString::number(ui->sessionList->rowCount())));
     item_2->setText(clientSocket[currentRow]->peerAddress().toString().mid(7));
     item_3->setText(QString::number(clientSocket[currentRow]->peerPort()));
     item_4->setText("在线");
@@ -60,8 +78,8 @@ void MainWindow::serverNewConnect()
     ui->sessionList->setItem(currentRow, 3, item_4);
 
     // 连接QTcpSocket的信号槽，以读取新数据
-    connect(socket, SIGNAL(readyRead()), this, SLOT(Read_Data()));
-    connect(socket, SIGNAL(disconnected()), this, SLOT(disConnected()));
+    connect(socket, SIGNAL(readyRead()), this, SLOT(ReadData()));
+    connect(socket, SIGNAL(disconnected()), this, SLOT(DisConnected()));
 }
 
 void MainWindow::on_socketListen_clicked()
@@ -112,7 +130,7 @@ void MainWindow::ReadData()
         if(buffer.isEmpty()) {
             continue;
         }
-
+        
         static QString IP_Port, IP_Port_Pre;
         IP_Port = tr("[%1:%2]:").arg(clientSocket[i]->peerAddress().toString().mid(7)).arg(clientSocket[i]->peerPort());
 
@@ -134,7 +152,7 @@ void MainWindow::DisConnected()
     for(int i = 0; i < clientSocket.length(); ++i) {
         if(clientSocket[i]->state() == QAbstractSocket::UnconnectedState)
         {
-            // 删除存储在tableWidget中的该客户端信息
+            // 删除存储在sessionList中的该客户端信息
             for (int j = 0; j < ui->sessionList->rowCount(); ++j) {
                 if (clientSocket[i]->peerAddress().toString().mid(7) == ui->sessionList->item(j, 1)->text()) {
                     ui->sessionList->removeRow(j);
@@ -157,7 +175,7 @@ void MainWindow::on_Send_clicked()
     // 获取选中的行
     int row = ui->sessionList->currentRow();
 
-    QString data = ui->Send->text();
+    QString data = ui->Message->text();
     if (data.isEmpty()) {
         QMessageBox::information(this, "提示", "请输入发送内容！", QMessageBox::Yes);
     }
@@ -166,12 +184,12 @@ void MainWindow::on_Send_clicked()
             for (int i = 0; i < clientSocket.length(); ++i) {
                 if (QString::number(clientSocket[i]->peerPort()) == ui->sessionList->item(row, 2)->text()) {
                     //以ASCII码形式发送文本框内容
-                    clientSocket[i]->write(data.toLatin1());
+                    clientSocket[i]->write(data.toUtf8());
                 }
             }
         }
         else {
-            socket->write(data.toLatin1());
+            socket->write(data.toUtf8());
         }
     }
 }
