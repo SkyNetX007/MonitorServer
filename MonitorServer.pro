@@ -1,6 +1,16 @@
-QT       += core gui
+#-------------------------------------------------
+#
+# Project created by SkyNetX007
+#
+#-------------------------------------------------
+
+QT       += core gui network
+
+INCLUDEPATH += ./include
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
+
+TARGET = MonitorServer
 
 CONFIG += c++11
 
