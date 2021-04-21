@@ -100,5 +100,78 @@ void MainWindow::on_socketListen_clicked()
         ui->serverStateLabel->setPalette(pe);
         ui->serverStateLabel->setText("服务器未打开");
     }
+}
 
+// 从客户端接收到的消息
+void MainWindow::ReadData()
+{
+    // 由于readyRead信号并未提供SocketDecriptor，所以需要遍历所有客户端
+    for (int i = 0; i < clientSocket.length(); ++i) {
+        // 读取缓冲区数据
+        QByteArray buffer = clientSocket[i]->readAll();
+        if(buffer.isEmpty()) {
+            continue;
+        }
+
+        static QString IP_Port, IP_Port_Pre;
+        IP_Port = tr("[%1:%2]:").arg(clientSocket[i]->peerAddress().toString().mid(7)).arg(clientSocket[i]->peerPort());
+
+        // 若此次消息的地址与上次不同，则需显示此次消息的客户端地址
+        if (IP_Port != IP_Port_Pre) {
+            ui->recievedData->append(IP_Port);
+        }
+
+        ui->recievedData->append(buffer);
+
+        // 更新ip_port
+        IP_Port_Pre = IP_Port;
+    }
+}
+
+void MainWindow::DisConnected()
+{
+    // 遍历寻找断开连接的是哪一个客户端
+    for(int i = 0; i < clientSocket.length(); ++i) {
+        if(clientSocket[i]->state() == QAbstractSocket::UnconnectedState)
+        {
+            // 删除存储在tableWidget中的该客户端信息
+            for (int j = 0; j < ui->sessionList->rowCount(); ++j) {
+                if (clientSocket[i]->peerAddress().toString().mid(7) == ui->sessionList->item(j, 1)->text()) {
+                    ui->sessionList->removeRow(j);
+                }
+            }
+            // 删除存储在clientSocket列表中的客户端信息
+            clientSocket[i]->destroyed();
+            clientSocket.removeAt(i);
+        }
+    }
+}
+
+void MainWindow::on_clearLog_clicked()
+{
+    ui->recievedData->clear();
+}
+
+void MainWindow::on_Send_clicked()
+{
+    // 获取选中的行
+    int row = ui->sessionList->currentRow();
+
+    QString data = ui->Send->text();
+    if (data.isEmpty()) {
+        QMessageBox::information(this, "提示", "请输入发送内容！", QMessageBox::Yes);
+    }
+    else {
+        if (row >= 0) {
+            for (int i = 0; i < clientSocket.length(); ++i) {
+                if (QString::number(clientSocket[i]->peerPort()) == ui->sessionList->item(row, 2)->text()) {
+                    //以ASCII码形式发送文本框内容
+                    clientSocket[i]->write(data.toLatin1());
+                }
+            }
+        }
+        else {
+            socket->write(data.toLatin1());
+        }
+    }
 }

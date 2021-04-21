@@ -24,6 +24,14 @@ private slots:
 
     void serverNewConnect();
 
+    void ReadData();
+
+    void DisConnected();
+
+    void on_clearLog_clicked();
+
+    void on_Send_clicked();
+
 private:
     Ui::MainWindow *ui;
 
