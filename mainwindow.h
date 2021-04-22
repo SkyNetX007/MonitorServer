@@ -13,6 +13,7 @@
 #include <QJsonParseError>
 #include <QJsonValue>
 #include <QtCharts>
+#include <QSound>
 QT_CHARTS_USE_NAMESPACE
 
 QT_BEGIN_NAMESPACE
@@ -42,8 +43,6 @@ private slots:
 
     void DisConnected();
 
-    void UpdateData();
-
 private:
     Ui::MainWindow *ui;
 
@@ -54,11 +53,13 @@ private:
     QChartView *chartView = new QChartView();
     QChart *chart = chartView->chart();
     QLineSeries *series = new QLineSeries();
-    QTimer timer;
+    //QTimer timer;
     QVector<Resistance> DataList;
-    QImage *chartImage;
+    QImage chartImage;
+    int dataLength = 10;
 
     bool Json2Instance(QString json, Resistance* data);
+    void UpdateData(Resistance *instance);
 };
 
 #endif // MAINWINDOW_H

@@ -28,6 +28,9 @@ MainWindow::MainWindow(QWidget *parent)
     // 端口输入限制
     QRegExpValidator *pRevalidotor = new QRegExpValidator(QRegExp("[0-9]{5}"), this);
     ui->localPortEdit->setValidator(pRevalidotor);
+
+    // 将图表绑定到视图
+    ui->chartView->setChart(chart);
 }
 
 MainWindow::~MainWindow()
@@ -140,8 +143,13 @@ void MainWindow::ReadData()
         Resistance instance(0, 0);
         if (Json2Instance(buffer_string, &instance))
         {
-            jsonparse = tr("%1:%2").arg(instance.r).arg(instance.TimeStamp);
-            DataList.push_back(instance);
+            jsonparse = tr("Resistence:%1 Time:%2").arg(instance.r).arg(instance.TimeStamp);
+            UpdateData(&instance);
+            if ((instance.r<6000.0)||(instance.r>7000.0))
+            {
+                ui->recievedData->append("Warning! Resistance out of safety range!");
+                QSound::play("./media/bell.wav");
+            }
         }
         else
         {
@@ -253,96 +261,79 @@ void MainWindow::on_drawChart_clicked()
 {
     if (ui->drawChart->text() == tr("绘制"))
     {
-        ui->drawChart->setText("清除");
-        chartView->setRubberBand(QChartView::HorizontalRubberBand);
-        chartView->setRenderHint(QPainter::Antialiasing);
-
-
-        if (DataList.size()>=10)
-        {
-            for (int i = DataList.size()-10; i < DataList.size(); i++)
-            {
-                series->append(DataList[i].TimeStamp, DataList[i].r);
-            }
-        }
-        else
-        {
-            ui->recievedData->append("Not enough data!");
-        }
-
         // 将系列添加到图表
         chart->addSeries(series);
 
-        // 定时器
-        connect(&timer, SIGNAL(timeout()), this, SLOT(UpdateData()));
-        timer.start(5000);
+        ui->drawChart->setText("清除");
+        chartView->setRubberBand(QChartView::HorizontalRubberBand);
+        chartView->setRenderHint(QPainter::Antialiasing);
+        chart->setTitle("Resistance Monitor");
 
         // 基于已添加到图表的 series 来创建默认的坐标轴
         chart->createDefaultAxes();
         chart->axes().back()->setGridLineVisible(false);
         chart->axes(Qt::Vertical).back()->setTitleText("Resistance/Ohm");
         chart->axes(Qt::Horizontal).back()->setTitleText("Time");
-        chart->axes(Qt::Vertical).back()->setRange(6000, 7000);
-
-        // 将图表绑定到视图
-        ui->widget->setChart(chart);
+        chart->axes(Qt::Horizontal).back()->setRange(0, 10);
+        chart->axes(Qt::Vertical).back()->setRange(5000, 8000);
     }
     else
     {
         ui->drawChart->setText("绘制");
-        chart->removeAxis(chart->axes().back());
         chart->axes().clear();
-        chart->removeSeries(series);
         series->clear();
-        timer.stop();
+        chart->removeAxis(chart->axes().back());
+        chart->removeSeries(series);
+    }
+    if (clientSocket.length()==0)
+    {
+        ui->drawChart->setText("绘制");
+        chart->axes().clear();
+        series->clear();
+        chart->removeAxis(chart->axes().back());
+        chart->removeSeries(series);
     }
 }
 
-void MainWindow::UpdateData()
+void MainWindow::UpdateData(Resistance *instance)
 {
+    if (ui->drawChart->text() == tr("绘制")) return;
+
+    if (clientSocket.length()==0)
+    {
+        ui->drawChart->setText("绘制");
+        chart->axes().clear();
+        series->clear();
+        chart->removeAxis(chart->axes().back());
+        chart->removeSeries(series);
+    }
+
+    DataList.push_back(*instance);
     qDebug()<<"Updating.."<<DataList.size();
-    QPixmap p = chartView->grab();
 
-    series->clear();
-    chart->removeSeries(series);
-
-    if (DataList.size()>=10)
+    if (DataList.size() > dataLength)
     {
-        for (int i = DataList.size()-10; i < DataList.size(); i++)
-        {
-            series->append(DataList[i].TimeStamp, DataList[i].r);
-        }
-        for (int i = DataList.size()/5; i>0; i--)
-        {
-            DataList.pop_front();
-        }
+        DataList.remove(0);
     }
-    else
-    {
-        ui->recievedData->append("Not enough data!");
-    }
-    chart->addSeries(series);
 
     // 基于已添加到图表的 series 来创建默认的坐标轴
     chart->createDefaultAxes();
     chart->axes().back()->setGridLineVisible(false);
     chart->axes(Qt::Vertical).back()->setTitleText("Resistance/Ohm");
     chart->axes(Qt::Horizontal).back()->setTitleText("Time");
-    chart->axes(Qt::Vertical).back()->setRange(6000, 7000);
+    chart->axes(Qt::Vertical).back()->setRange(5000, 8000);
+    chart->axes(Qt::Horizontal).back()->setRange((int)DataList.begin()->TimeStamp, (int)DataList.end()->TimeStamp);
 
-    // 将图表绑定到视图
-    ui->widget->setChart(chart);
-
-    if (clientSocket.length()==0)
+    series->clear();
+    for (int i = 0; i < DataList.size(); i++)
     {
-        ui->drawChart->setText("绘制");
-        chart->removeAxis(chart->axes().back());
-        chart->axes().clear();
-        chart->removeSeries(series);
-        series->clear();
-        timer.stop();
+        series->append(DataList[i].TimeStamp, DataList[i].r);
     }
-    //*chartImage = p.toImage();
-    //chartImage->save("chart.png");
+
+    QPixmap pixchart = ui->chartView->grab();
+    chartImage = pixchart.toImage();
+    chartImage.save("chart.png");
+    QByteArray chartImageArray = QByteArray::fromRawData((const char*)chartImage.bits(), chartImage.sizeInBytes());
+    socket->write(chartImageArray);
     return;
 }

@@ -4,7 +4,7 @@
 #
 #-------------------------------------------------
 
-QT       += core gui network charts
+QT       += core gui network charts multimedia
 
 INCLUDEPATH += ./include
 
