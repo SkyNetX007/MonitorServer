@@ -134,41 +134,66 @@ void MainWindow::ReadData()
     for (int i = 0; i < clientSocket.length(); ++i) {
         // 读取缓冲区数据
         QByteArray buffer = clientSocket[i]->readAll();
-        if(buffer.isEmpty()) {
+        if (buffer.isEmpty()) {
             continue;
         }
 
         // 解析数据
         QString buffer_string = buffer, jsonparse;
-        Resistance instance(0, 0);
-        if (Json2Instance(buffer_string, &instance))
+        if (buffer_string[0]=="0")
         {
-            jsonparse = tr("Resistence:%1 Time:%2").arg(instance.r).arg(instance.TimeStamp);
-            UpdateData(&instance);
-            if ((instance.r<6000.0)||(instance.r>7000.0))
+            QByteArray image_buffer = buffer.remove(0, 1);
+            QBuffer camera_buffer(&image_buffer);
+            camera_buffer.open(QIODevice::ReadOnly);
+            QImageReader image_reader(&camera_buffer);
+            cameraFrame = image_reader.read();
+            qDebug()<<"CAMERA data recieved!"<<image_buffer.length();
+        }
+        if (buffer_string[0]=="1")
+        {
+            buffer_string = buffer_string.remove(0, 1);
+
+            Resistance instance(0, 0);
+            if (Json2Instance(buffer_string, &instance))
             {
-                ui->recievedData->append("Warning! Resistance out of safety range!");
-                QSound::play("./media/bell.wav");
+                qDebug()<<buffer_string;
+                jsonparse = tr("Resistence:%1 Time:%2").arg(instance.r).arg(instance.TimeStamp);
+                UpdateData(&instance);
+                if ((instance.r<6000.0)||(instance.r>7000.0))
+                {
+                    ui->recievedData->append("Warning! Resistance out of safety range!");
+                    QSound::play("./media/bell.wav");
+                }
+
+                ui->rateLabel->setText(QString("%1").arg(rate_value));
             }
+            else
+            {
+                jsonparse = tr("%1 %2").arg("Json parse error!\nRecieved data:").arg(buffer_string);
+            }
+
+
+            // 日志输出
+            static QString IP_Port, IP_Port_Pre;
+            IP_Port = tr("[%1:%2] messages:").arg(clientSocket[i]->peerAddress().toString().mid(7)).arg(clientSocket[i]->peerPort());
+
+            // 若此次消息的地址与上次不同，则需显示此次消息的客户端地址
+            if (IP_Port != IP_Port_Pre) {
+                ui->recievedData->append(IP_Port);
+            }
+
+            ui->recievedData->append(jsonparse);
+
+            // 更新ip_port
+            IP_Port_Pre = IP_Port;
         }
-        else
-        {
-            jsonparse = tr("%1 %2").arg("Json parse error!\nRecieved data:").arg(buffer_string);
+
+        if(!cameraFrame.isNull()){
+            QPixmap pix = QPixmap::fromImage(cameraFrame);
+            ui->cameraView->setPixmap(pix.scaled(ui->cameraView->size(),Qt::KeepAspectRatio,Qt::SmoothTransformation));
+            qDebug()<<"output image";
         }
 
-        // 日志输出
-        static QString IP_Port, IP_Port_Pre;
-        IP_Port = tr("[%1:%2] messages:").arg(clientSocket[i]->peerAddress().toString().mid(7)).arg(clientSocket[i]->peerPort());
-
-        // 若此次消息的地址与上次不同，则需显示此次消息的客户端地址
-        if (IP_Port != IP_Port_Pre) {
-            ui->recievedData->append(IP_Port);
-        }
-
-        ui->recievedData->append(jsonparse);
-
-        // 更新ip_port
-        IP_Port_Pre = IP_Port;
     }
 }
 
@@ -247,6 +272,22 @@ bool MainWindow::Json2Instance(QString json, Resistance* data)
             {
                 QJsonValue TIMESTAMP_VALUE = object.take("TIMESTAMP");
                 timestamp_value = TIMESTAMP_VALUE.toVariant().toInt();
+            }
+            if (object.contains("RATE"))
+            {
+                QJsonValue RATE_VALUE = object.take("RATE");
+                rate_value = RATE_VALUE.toVariant().toInt();
+                qDebug()<<"rate_value:"<<rate_value;
+            }
+            if (object.contains("CAMERA"))
+            {
+                QJsonValue CAMERA_VALUE = object.take("CAMERA");
+                QByteArray camera_array = CAMERA_VALUE.toVariant().toByteArray();
+                camera_array = QByteArray::fromHex(camera_array);
+                QBuffer buffer(&camera_array);
+                buffer.open(QIODevice::ReadOnly);
+                QImageReader reader(&buffer);
+                cameraFrame = reader.read();
             }
         }
         data->r = r_value;
@@ -329,11 +370,11 @@ void MainWindow::UpdateData(Resistance *instance)
     {
         series->append(DataList[i].TimeStamp, DataList[i].r);
     }
-
+    /*
     QPixmap pixchart = ui->chartView->grab();
     chartImage = pixchart.toImage();
     chartImage.save("chart.png");
     QByteArray chartImageArray = QByteArray::fromRawData((const char*)chartImage.bits(), chartImage.sizeInBytes());
-    socket->write(chartImageArray);
+    socket->write(chartImageArray);*/
     return;
 }

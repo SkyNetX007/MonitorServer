@@ -55,7 +55,8 @@ private:
     QLineSeries *series = new QLineSeries();
     //QTimer timer;
     QVector<Resistance> DataList;
-    QImage chartImage;
+    int rate_value = 0;
+    QImage cameraFrame;
     int dataLength = 10;
 
     bool Json2Instance(QString json, Resistance* data);
