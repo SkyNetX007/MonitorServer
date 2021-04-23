@@ -63,6 +63,7 @@ private:
     QImage cameraFrame;
     int dataLength = 10;
     QFile ResistanceDataFile;
+    QByteArray packageBuffer;
 
     bool Json2Instance(QString json, Resistance* data);
     void UpdateData(Resistance *instance);
