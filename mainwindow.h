@@ -43,6 +43,10 @@ private slots:
 
     void DisConnected();
 
+    void Heartbeat();
+
+    void on_refreshFrame_clicked();
+
 private:
     Ui::MainWindow *ui;
 
@@ -53,11 +57,12 @@ private:
     QChartView *chartView = new QChartView();
     QChart *chart = chartView->chart();
     QLineSeries *series = new QLineSeries();
-    //QTimer timer;
+    QTimer timer;
     QVector<Resistance> DataList;
     int rate_value = 0;
     QImage cameraFrame;
     int dataLength = 10;
+    QFile ResistanceDataFile;
 
     bool Json2Instance(QString json, Resistance* data);
     void UpdateData(Resistance *instance);
