@@ -145,27 +145,31 @@ void MainWindow::ReadData()
         if (buffer.isEmpty()) {
             continue;
         }
+        qDebug()<<buffer<<"\n";
 
         // 解析数据
         QString buffer_string = buffer, jsonparse;
 
         if (buffer_string[0]=="0")
         {
-            disconnect(socket, SIGNAL(readyRead()), this, SLOT(ReadData()));
+            timer.start(3000);
+            //disconnect(socket, SIGNAL(readyRead()), this, SLOT(ReadData()));
             qDebug()<<"Recieving picture...";
             QByteArray image_buffer;
-
+            image_buffer.resize(buffer.size());
             image_buffer = buffer.mid(1,buffer.size()-1);
+
             packageBuffer.clear();
             packageBuffer += image_buffer;
-            socket->write("s");
-            socket->waitForBytesWritten();
-            qDebug()<<"Package recieved:"<<image_buffer.size()<<"/"<<packageBuffer.size()<<"\n"<<"Package:"<<image_buffer<<"\n";
+            //socket->write("s");
+            //socket->waitForBytesWritten();
+            //qDebug()<<"Package recieved:"<<image_buffer.size()<<"/"<<packageBuffer.size()<<"\n"<<"Package:"<<image_buffer<<"\n";
             while (true)
             {
                 buffer = clientSocket[i]->readAll();
 
                 QString buffer_string = buffer;
+
                 if (!socket->waitForReadyRead(500))
                 {
                     break;
@@ -173,7 +177,7 @@ void MainWindow::ReadData()
 
                 if (buffer_string[0]=="E")
                 {
-                    connect(socket, SIGNAL(readyRead()), this, SLOT(ReadData()));
+                    //connect(socket, SIGNAL(readyRead()), this, SLOT(ReadData()));
                     /*
                     QBuffer camera_buffer(&packageBuffer);
                     camera_buffer.open(QIODevice::ReadOnly);
@@ -186,19 +190,30 @@ void MainWindow::ReadData()
 
                 if (image_buffer.size() == 0)
                 {
-                    socket->write("s");
-                    socket->waitForBytesWritten();
+                    //socket->write("s");
+                    //socket->waitForBytesWritten();
                     continue;
                 }
                 packageBuffer += image_buffer;
 
-                socket->write("s");
-                socket->waitForBytesWritten();
-                qDebug()<<"Package recieved:"<<image_buffer.size()<<"/"<<packageBuffer.size()<<"\n"<<"Package:"<<image_buffer<<"\n";
+                //socket->write("s");
+                //socket->waitForBytesWritten();
+                //qDebug()<<"Package recieved:"<<image_buffer.size()<<"/"<<packageBuffer.size()<<"\n"<<"Package:"<<image_buffer<<"\n";
             }
             qDebug()<<"CAMERA data recieved:"<<packageBuffer.size();
             //qDebug()<<packageBuffer;
+
+            QBuffer camera_buffer(&packageBuffer);
+            camera_buffer.open(QIODevice::ReadOnly);
+            QImageReader image_reader(&camera_buffer);
+            image_reader.setFormat("bmp");
+            cameraFrame = image_reader.read();
+            /*
             cameraFrame = QImage((unsigned char*)packageBuffer.data(), 640, 480, QImage::Format_BGR888);
+            cameraFrame.save("cameraFrame.jpg");*/
+
+            //socket->write("s");
+            //socket->waitForBytesWritten();
 
             packageBuffer.clear();
 
@@ -206,12 +221,11 @@ void MainWindow::ReadData()
                 QPixmap pix = QPixmap::fromImage(cameraFrame);
                 ui->cameraView->setPixmap(pix.scaled(ui->cameraView->size(),Qt::KeepAspectRatio,Qt::SmoothTransformation));
             }
-            cameraFrame.save("cameraFrame.jpg");
+
         }
         if (buffer_string[0]=="1")
         {
             buffer_string = buffer_string.mid(1,buffer_string.size()-1);
-
             Resistance instance(0, 0);
             if (Json2Instance(buffer_string, &instance))
             {
@@ -221,14 +235,14 @@ void MainWindow::ReadData()
                 {
                     ui->recievedData->append("Warning! Resistance out of safety range!");
                     QSound::play("./media/bell.wav");
-                }/*
+                }
                 if (ResistanceDataFile.open(QIODevice::WriteOnly | QIODevice::Append)==true)
                 {
                     QDataStream data_stream(&ResistanceDataFile);
                     QString data = tr("Resistence:%1 Time:%2\n").arg(instance.r).arg(instance.TimeStamp);
                     data_stream << data;
                     ResistanceDataFile.close();
-                }*/
+                }
 
                 ui->rateLabel->setText(QString("%1").arg(rate_value));
             }
@@ -261,6 +275,8 @@ void MainWindow::ReadData()
             timer.start(3000);
             ui->recievedData->append("Heartbeat recieved!");
             socket->write("h");
+            socket->waitForBytesWritten();
+            qDebug()<<"Heartbeat recieved!";
         }
 
     }
@@ -315,6 +331,7 @@ void MainWindow::on_Send_clicked()
         }
         else {
             socket->write(data.toUtf8());
+            socket->waitForBytesWritten();
         }
     }
 }
@@ -447,7 +464,6 @@ void MainWindow::UpdateData(Resistance *instance)
     chartImage.save("chart.png");
     QByteArray chartImageArray = QByteArray::fromRawData((const char*)chartImage.bits(), chartImage.sizeInBytes());
     socket->write(chartImageArray);*/
-    socket->write("c");
     return;
 }
 
@@ -461,4 +477,5 @@ void MainWindow::Heartbeat()
 void MainWindow::on_refreshFrame_clicked()
 {
     socket->write("c");
+    socket->waitForBytesWritten();
 }
